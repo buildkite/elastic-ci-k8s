@@ -150,7 +150,13 @@ func AddConfigFlags(cmd *cobra.Command) {
 	cmd.Flags().Int(
 		"graphql-results-limit",
 		config.DefaultGraphQLResultsLimit,
-		"Sets the amount of results returned by GraphQL queries when retreiving Jobs to be Scheduled")
+		"Sets the amount of results returned by GraphQL queries when retreiving Jobs to be Scheduled",
+	)
+	cmd.Flags().Bool(
+		"allow-pod-spec-patch-unsafe-command-modification",
+		false,
+		"Permits PodSpecPatch to modify the command or args fields of stack-provided containers. See the warning in the README before enabling this option",
+	)
 }
 
 // ReadConfigFromFileArgsAndEnv reads the config from the file, env and args in that order.
