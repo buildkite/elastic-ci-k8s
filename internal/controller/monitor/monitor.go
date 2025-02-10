@@ -125,10 +125,34 @@ func (m *Monitor) getScheduledCommandJobs(ctx context.Context, queue string) (jo
 		agentQueryRule = append(agentQueryRule, fmt.Sprintf("queue=%s", queue))
 	}
 
-	resp, err := api.GetScheduledJobsClustered(
-		ctx, m.gql, m.cfg.Org, agentQueryRule, encodeClusterGraphQLID(m.cfg.ClusterUUID),
-	)
-	return clusteredJobResp(*resp), err
+	//resp, err := api.GetScheduledJobsClustered(
+	//	ctx, m.gql, m.cfg.Org, agentQueryRule, encodeClusterGraphQLID(m.cfg.ClusterUUID),
+	//)
+	//return clusteredJobResp(*resp), err
+
+	var cursor *string
+	var allJobs clusteredJobResp
+	for {
+		resp, err := api.GetScheduledJobsClustered(ctx, m.gql, m.cfg.Org, agentQueryRule, encodeClusterGraphQLID(m.cfg.ClusterUUID), cursor)
+		if err != nil {
+			// Log error here
+			break
+		}
+
+		if resp.Jobs.Count == 0 {
+			// No jobs found
+			break
+		}
+		allJobs = append(allJobs, resp)
+
+		if !resp.Jobs.PageInfo.HasNextPage {
+			break
+		}
+
+		cursor = &resp.Jobs.PageInfo.EndCursor
+	}
+
+	return clusteredJobResp(*allJobs), err
 }
 
 func (m *Monitor) Start(ctx context.Context, handler model.JobHandler) <-chan error {
