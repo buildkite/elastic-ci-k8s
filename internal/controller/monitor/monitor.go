@@ -126,6 +126,23 @@ func (m *Monitor) getScheduledCommandJobs(ctx context.Context, queue string) (jo
 		agentQueryRule = append(agentQueryRule, fmt.Sprintf("queue=%s", queue))
 	}
 
+	queues, err := api.GetClusterQueues(ctx, m.gql, m.cfg.Org, m.cfg.ClusterUUID, 100)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch cluster queues: %w", err)
+	}
+
+	isQueuePaused := false
+	for _, edge := range queues.Organization.Cluster.Queues.Edges {
+		if edge.Node.Key == queue {
+			isQueuePaused = edge.Node.DispatchPaused
+			break
+		}
+	}
+
+	if isQueuePaused {
+		return nil, fmt.Errorf("the queue '%s' is paused", queue)
+	}
+
 	resp, err := api.GetScheduledJobsClustered(
 		ctx, m.gql, m.cfg.Org, agentQueryRule, encodeClusterGraphQLID(m.cfg.ClusterUUID), m.cfg.GraphQLResultsLimit,
 	)
