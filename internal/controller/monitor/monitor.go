@@ -141,7 +141,7 @@ func (m *Monitor) getScheduledCommandJobs(ctx context.Context, queue string) (jo
 	}
 
 	if isQueuePaused {
-		return nil, fmt.Errorf("the queue '%s' is paused", queue)
+		return nil, fmt.Errorf("the queue %q is paused", queue)
 	}
 
 	resp, err := api.GetScheduledJobsClustered(
