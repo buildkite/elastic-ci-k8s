@@ -33,6 +33,20 @@
       "title": "The image for the agent-stack-k8s controller",
       "examples": ["ghcr.io/buildkite/agent-stack-k8s/controller:latest"]
     },
+    "nameOverride": {
+      "type": "string",
+      "default": "",
+      "minLength": 0,
+      "title": "The chart's overridden name",
+      "examples": ["agent-stack-k8s-blue"]
+    },
+    "fullnameOverride": {
+      "type": "string",
+      "default": "",
+      "minLength": 0,
+      "title": "The chart's overridden full name",
+      "examples": ["agent-stack-k8s-green"]
+    },
     "nodeSelector": {
       "type": "object",
       "default": {},
@@ -188,6 +202,12 @@
           "default": "",
           "title": "The job-ttl Schema",
           "examples": [""]
+        },
+        "job-active-deadline-seconds": {
+          "type": "integer",
+          "default": 21600,
+          "title": "The maximum number of seconds a kubernetes job is allowed to run before terminating all pods and failing the job",
+          "examples": [43200, 86400]
         },
         "max-in-flight": {
           "type": "integer",
@@ -506,7 +526,7 @@
         "default-image-pull-policy": {
           "type": "string",
           "description": "Configures a default image pull policy for containers that do not specify a pull policy, or containers created by the stack itself",
-          "default": "IfNotPresent",
+          "default": "",
           "examples": ["Always", "IfNotPresent", "Never", ""]
         },
         "default-image-check-pull-policy": {
@@ -517,6 +537,13 @@
         },
         "pod-spec-patch": {
           "$ref": "https://kubernetesjsonschema.dev/master/_definitions.json#/definitions/io.k8s.api.core.v1.PodSpec"
+        },
+        "graphql-results-limit": {
+          "type": "integer",
+          "default": 100,
+          "minimum": 1,
+          "maximum": 500,
+          "title": "The maximum number of GraphQL results to return from GetScheduledJobs and GetScheduledJobsClustered queries"
         }
       },
       "examples": [

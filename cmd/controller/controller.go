@@ -70,6 +70,11 @@ func AddConfigFlags(cmd *cobra.Command) {
 		10*time.Minute,
 		"time to retain kubernetes jobs after completion",
 	)
+	cmd.Flags().Int(
+		"job-active-deadline-seconds",
+		21600,
+		"maximum number of seconds a kubernetes job is allowed to run before terminating all pods and failing job",
+	)
 	cmd.Flags().Duration(
 		"poll-interval",
 		time.Second,
@@ -129,7 +134,7 @@ func AddConfigFlags(cmd *cobra.Command) {
 	)
 	cmd.Flags().String(
 		"default-image-pull-policy",
-		"IfNotPresent",
+		"",
 		"Configures a default image pull policy for containers that do not specify a pull policy and non-init containers created by the stack itself",
 	)
 	cmd.Flags().String(
@@ -142,6 +147,10 @@ func AddConfigFlags(cmd *cobra.Command) {
 		false,
 		"Causes the controller to prohibit the kubernetes plugin specified within jobs (pipeline YAML) - enabling this causes jobs with a kubernetes plugin to fail, preventing the pipeline YAML from having any influence over the podSpec",
 	)
+	cmd.Flags().Int(
+		"graphql-results-limit",
+		config.DefaultGraphQLResultsLimit,
+		"Sets the amount of results returned by GraphQL queries when retreiving Jobs to be Scheduled")
 }
 
 // ReadConfigFromFileArgsAndEnv reads the config from the file, env and args in that order.
@@ -314,6 +323,11 @@ func New() *cobra.Command {
 			clientConfig := restconfig.GetConfigOrDie()
 			clientConfig.QPS = float32(cfg.K8sClientRateLimiterQPS)
 			clientConfig.Burst = cfg.K8sClientRateLimiterBurst
+
+			// Default to Protobuf encoding for API responses, support fallback to JSON
+			clientConfig.AcceptContentTypes = "application/vnd.kubernetes.protobuf,application/json"
+			clientConfig.ContentType = "application/vnd.kubernetes.protobuf"
+
 			k8sClient, err := kubernetes.NewForConfig(clientConfig)
 			if err != nil {
 				logger.Error("failed to create clientset", zap.Error(err))

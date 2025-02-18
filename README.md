@@ -19,6 +19,7 @@
   - [Skipping checkout](#Skipping-checkout)
   - [Overriding flags for git clone/fetch](#Overriding-flags-for-git-clonefetch)
   - [Validating your pipeline](#Validating-your-pipeline)
+  - [Long-running jobs](#long-running-jobs)
 - [Securing the stack](#securing-the-stack)
   - [Prohibiting the kubernetes plugin (v0.13.0 and later)](#prohibiting-the-kubernetes-plugin-v0130-and-later)
 - [How to setup agent hooks](#How-to-setup-agent-hooks)
@@ -122,24 +123,34 @@ Available Commands:
   version     Prints the version
 
 Flags:
-      --agent-token-secret string                  name of the Buildkite agent token secret (default "buildkite-agent-token")
-      --buildkite-token string                     Buildkite API token with GraphQL scopes
-      --cluster-uuid string                        UUID of the Buildkite Cluster. The agent token must be for the Buildkite Cluster.
-  -f, --config string                              config file path
-      --debug                                      debug logs
-  -h, --help                                       help for agent-stack-k8s
-      --image string                               The image to use for the Buildkite agent (default "ghcr.io/buildkite/agent:3.78.0")
-      --image-pull-backoff-grace-period duration   Duration after starting a pod that the controller will wait before considering cancelling a job due to ImagePullBackOff (e.g. when the podSpec specifies container images that cannot be pulled) (default 30s)
-      --job-ttl duration                           time to retain kubernetes jobs after completion (default 10m0s)
-      --k8s-client-rate-limiter-qps int            number of queries per second allowed to Kubernetes API, once Burst has been exhausted (default 10)
-      --k8s-client-rate-limiter-burst int          number of queries allowed before throttling requests to Kubernetes API, before using QPS (default 20)
-      --max-in-flight int                          max jobs in flight, 0 means no max (default 25)
-      --namespace string                           kubernetes namespace to create resources in (default "default")
-      --org string                                 Buildkite organization name to watch
-      --poll-interval duration                     time to wait between polling for new jobs (minimum 1s); note that increasing this causes jobs to be slower to start (default 1s)
-      --profiler-address string                    Bind address to expose the pprof profiler (e.g. localhost:6060)
-      --prohibit-kubernetes-plugin                 Causes the controller to prohibit the kubernetes plugin specified within jobs (pipeline YAML) - enabling this causes jobs with a kubernetes plugin to fail, preventing the pipeline YAML from having any influence over the podSpec
-      --tags strings                               A comma-separated list of agent tags. The "queue" tag must be unique (e.g. "queue=kubernetes,os=linux") (default [queue=kubernetes])
+      --agent-token-secret string                   name of the Buildkite agent token secret (default "buildkite-agent-token")
+      --buildkite-token string                      Buildkite API token with GraphQL scopes
+      --cluster-uuid string                         UUID of the Buildkite Cluster. The agent token must be for the Buildkite Cluster.
+  -f, --config string                               config file path
+      --debug                                       debug logs
+      --default-image-check-pull-policy string      Sets a default PullPolicy for image-check init containers, used if an image pull policy is not set for the corresponding container in a podSpec or podSpecPatch
+      --default-image-pull-policy string            Configures a default image pull policy for containers that do not specify a pull policy and non-init containers created by the stack itself (default "IfNotPresent")
+      --empty-job-grace-period duration             Duration after starting a Kubernetes job that the controller will wait before considering failing the job due to a missing pod (e.g. when the podSpec specifies a missing service account) (default 30s)
+      --graphql-endpoint string                     Buildkite GraphQL endpoint URL
+      --graphql-results-limit int                   Sets the amount of results returned by GraphQL queries when retreiving Jobs to be Scheduled (default 100)
+  -h, --help                                        help for agent-stack-k8s
+      --image string                                The image to use for the Buildkite agent (default "ghcr.io/buildkite/agent:3.91.0")
+      --image-pull-backoff-grace-period duration    Duration after starting a pod that the controller will wait before considering cancelling a job due to ImagePullBackOff (e.g. when the podSpec specifies container images that cannot be pulled) (default 30s)
+      --job-cancel-checker-poll-interval duration   Controls the interval between job state queries while a pod is still Pending (default 5s)
+      --job-creation-concurrency int                Number of concurrent goroutines to run for converting Buildkite jobs into Kubernetes jobs (default 5)
+      --job-ttl duration                            time to retain kubernetes jobs after completion (default 10m0s)
+      --job-active-deadline-seconds int             maximum number of seconds a kubernetes job is allowed to run before terminating all pods and failing (default 21600)
+      --k8s-client-rate-limiter-burst int           The burst value of the K8s client rate limiter. (default 20)
+      --k8s-client-rate-limiter-qps int             The QPS value of the K8s client rate limiter. (default 10)
+      --max-in-flight int                           max jobs in flight, 0 means no max (default 25)
+      --namespace string                            kubernetes namespace to create resources in (default "default")
+      --org string                                  Buildkite organization name to watch
+      --poll-interval duration                      time to wait between polling for new jobs (minimum 1s); note that increasing this causes jobs to be slower to start (default 1s)
+      --profiler-address string                     Bind address to expose the pprof profiler (e.g. localhost:6060)
+      --prohibit-kubernetes-plugin                  Causes the controller to prohibit the kubernetes plugin specified within jobs (pipeline YAML) - enabling this causes jobs with a kubernetes plugin to fail, preventing the pipeline YAML from having any influence over the podSpec
+      --prometheus-port uint16                      Bind port to expose Prometheus /metrics; 0 disables it
+      --stale-job-data-timeout duration             Duration after querying jobs in Buildkite that the data is considered valid (default 10s)
+      --tags strings                                A comma-separated list of agent tags. The "queue" tag must be unique (e.g. "queue=kubernetes,os=linux") (default [queue=kubernetes])
 
 Use "agent-stack-k8s [command] --help" for more information about a command.
 ```
@@ -1021,6 +1032,28 @@ This currently can't prevent every sort of error, you might still have a referen
 
 Our JSON schema can also be used with editors that support JSON Schema by configuring your editor to validate against the schema found [here](./cmd/linter/schema.json).
 
+### Long-running jobs
+
+With the addition of `.spec.job.activeDeadlineSeconds` in version [`v0.24.0`](https://github.com/buildkite/agent-stack-k8s/releases/tag/v0.24.0), Kubernetes jobs will run for a (default) maximum duration of `21600` seconds (6 hours). After this duration has been exceeded, all of the running Pods are terminated and the Job status will be `type: Failed`. This will be reflected in the Buildkite UI as `Exited with status -1 (agent lost)`.
+
+If long-running jobs are common in your Organization, this value should be increased in your controller configuration:
+```yaml
+# values.yaml
+...
+config:
+  job-active-deadline-seconds: 86400 # 24h
+...
+```
+It is also possible to override this configuration via the `kubernetes` plugin directly in your pipeline steps and will only apply to that `command` step:
+```yaml
+steps:
+- label: Long-running job
+  command: echo "Hello world" && sleep 43200
+  plugins:
+  - kubernetes:
+      jobActiveDeadlineSeconds: 43500
+```
+
 ## Securing the stack
 
 ### Prohibiting the kubernetes plugin (v0.13.0 and later)
@@ -1045,6 +1078,9 @@ With `prohibit-kubernetes-plugin` enabled, any job containing the kubernetes
 plugin will fail.
 
 ## Debugging
+
+Enable debug logging via the command line (`--debug`) or within the `values.yaml` file (`debug: true`)
+
 Use the `log-collector` script in the `utils` folder to collect logs for agent-stack-k8s.
 
 ### Prerequisites
