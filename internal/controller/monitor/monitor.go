@@ -126,6 +126,7 @@ func (m *Monitor) getScheduledCommandJobs(ctx context.Context, queue string) (jo
 		agentQueryRule = append(agentQueryRule, fmt.Sprintf("queue=%s", queue))
 	}
 
+	// TODO: use a more targeted query once one becomes available
 	queues, err := api.GetClusterQueues(ctx, m.gql, m.cfg.Org, m.cfg.ClusterUUID, 100)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch cluster queues: %w", err)
